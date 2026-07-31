@@ -1,0 +1,61 @@
+name: Build Windows App
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "app.py"
+      - "src/**"
+      - "requirements-dev.txt"
+      - ".github/workflows/build-windows.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install builder
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Build portable EXE
+        run: pyinstaller --noconfirm --clean --onefile --windowed --name "AntarcticaLeadRadar" app.py
+
+      - name: Build source bundle
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release\AntarcticaLeadRadar | Out-Null
+          Copy-Item app.py,README.md,PRIVACY.md,run_windows.bat,build_windows.ps1,requirements-dev.txt release\AntarcticaLeadRadar
+          Copy-Item src,sample,tests release\AntarcticaLeadRadar -Recurse
+          Compress-Archive -Path release\AntarcticaLeadRadar -DestinationPath dist\AntarcticaLeadRadar-source.zip -Force
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AntarcticaLeadRadar-Windows
+          path: |
+            dist/AntarcticaLeadRadar.exe
+            dist/AntarcticaLeadRadar-source.zip
+
+      - name: Publish or update release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "antarctica-lead-radar-v0.1.0"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --target $env:GITHUB_SHA --title "Antarctica Lead Radar v0.1.0" --notes "Windows portable build and source bundle. Uses official platform APIs and human-reviewed replies."
+          }
+          gh release upload $tag dist\AntarcticaLeadRadar.exe dist\AntarcticaLeadRadar-source.zip --clobber
