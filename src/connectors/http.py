@@ -25,7 +25,7 @@ def request_json(
     body = json.dumps(data, ensure_ascii=False).encode("utf-8") if data is not None else None
     combined_headers = {
         "Accept": "application/json",
-        "User-Agent": "AntarcticaLeadRadar/0.1 (+local desktop app)",
+        "User-Agent": "OmniMediaIntelligenceRadar/0.2 (+local desktop app)",
         **(headers or {}),
     }
     if data is not None:

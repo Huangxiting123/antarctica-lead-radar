@@ -30,7 +30,7 @@ class DatabaseTests(unittest.TestCase):
         self.assertFalse(created_again)
         self.db.apply_classification(row_id, classify_rule_based(item["content"]))
         row = self.db.get(row_id)
-        self.assertEqual(row["intent_label"], "同行意向")
+        self.assertEqual(row["intent_label"], "报名预约")
         self.assertEqual(self.db.dashboard_counts()["total"], 1)
 
     def test_filters(self):
