@@ -38,6 +38,8 @@ jobs:
           New-Item -ItemType Directory -Force release\AntarcticaLeadRadar | Out-Null
           Copy-Item app.py,README.md,PRIVACY.md,run_windows.bat,build_windows.ps1,requirements-dev.txt release\AntarcticaLeadRadar
           Copy-Item src,sample,tests release\AntarcticaLeadRadar -Recurse
+          Get-ChildItem release\AntarcticaLeadRadar -Recurse -Directory -Filter __pycache__ | Remove-Item -Recurse -Force
+          Get-ChildItem release\AntarcticaLeadRadar -Recurse -File -Filter *.pyc | Remove-Item -Force
           Compress-Archive -Path release\AntarcticaLeadRadar -DestinationPath dist\AntarcticaLeadRadar-source.zip -Force
 
       - name: Upload workflow artifact
