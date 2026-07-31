@@ -15,9 +15,10 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from src.classifier import classify_rule_based, classify_with_ollama
-from src.connectors import DouyinConnector, YouTubeConnector
+from src.connectors import DouyinConnector, MetaConnector, RedditConnector, TikTokResearchConnector, XConnector, YouTubeConnector
 from src.database import Database
 from src.io_tools import export_csv, export_xlsx, import_csv
+from src.platforms import LANGUAGES, PLATFORMS, PLATFORM_BY_KEY, REGIONS, option_code
 
 
 BG = "#07131b"
@@ -33,12 +34,16 @@ RED = "#ff7d79"
 class LeadRadarApp:
     def __init__(self, root: Tk):
         self.root = root
-        self.root.title("Antarctica Lead Radar · 南极意向雷达")
+        self.root.title("OmniMedia Intelligence Radar · 全域媒介情报雷达")
         self.root.geometry("1440x900")
         self.root.minsize(1180, 720)
         self.db = Database()
         self.douyin = DouyinConnector()
         self.youtube = YouTubeConnector()
+        self.x_connector = XConnector()
+        self.reddit = RedditConnector()
+        self.meta = MetaConnector()
+        self.tiktok = TikTokResearchConnector()
         self.douyin_session: dict[str, str] = {}
         self.youtube_api_key = ""
         self.selected_row_id: int | None = None
@@ -87,20 +92,21 @@ class LeadRadarApp:
         top.pack(fill=X)
         title_box = ttk.Frame(top)
         title_box.pack(side=LEFT)
-        ttk.Label(title_box, text="ANTARCTICA LEAD RADAR", style="Header.TLabel").pack(anchor="w")
-        ttk.Label(title_box, text="南极同行意向识别 · 本地数据 · 人工审核回复", style="Sub.TLabel").pack(anchor="w", pady=(3, 0))
+        ttk.Label(title_box, text="OMNIMEDIA INTELLIGENCE RADAR", style="Header.TLabel").pack(anchor="w")
+        self.project_header = StringVar(value=self.db.get_setting("project_name", "2027 南极旅行项目"))
+        ttk.Label(title_box, textvariable=self.project_header, style="Sub.TLabel").pack(anchor="w", pady=(3, 0))
         actions = ttk.Frame(top)
         actions.pack(side=RIGHT, pady=4)
-        ttk.Button(actions, text="导入CSV", command=self.import_csv_action).pack(side=LEFT, padx=4)
-        ttk.Button(actions, text="抖音官方采集", style="Accent.TButton", command=self.open_douyin_dialog).pack(side=LEFT, padx=4)
-        ttk.Button(actions, text="YouTube搜索", style="Accent.TButton", command=self.open_youtube_dialog).pack(side=LEFT, padx=4)
-        ttk.Button(actions, text="设置", command=self.open_settings).pack(side=LEFT, padx=4)
+        ttk.Button(actions, text="导入数据", command=self.import_csv_action).pack(side=LEFT, padx=4)
+        ttk.Button(actions, text="平台连接中心", style="Accent.TButton", command=self.open_platform_hub).pack(side=LEFT, padx=4)
+        ttk.Button(actions, text="YouTube快捷搜索", command=self.open_youtube_dialog).pack(side=LEFT, padx=4)
+        ttk.Button(actions, text="项目与AI设置", command=self.open_settings).pack(side=LEFT, padx=4)
 
         cards = ttk.Frame(self.root, padding=(22, 4, 22, 12))
         cards.pack(fill=X)
         self.card_vars = {key: StringVar(value="0") for key in ("total", "a_count", "b_count", "pending", "replied")}
         card_defs = [
-            ("total", "全部评论"), ("a_count", "A级意向"), ("b_count", "B级意向"),
+            ("total", "全部内容"), ("a_count", "A级线索"), ("b_count", "B级线索"),
             ("pending", "待审核"), ("replied", "已回复"),
         ]
         for key, title in card_defs:
@@ -155,10 +161,10 @@ class LeadRadarApp:
         self.tree.tag_configure("B", background="#132f3a")
         self.tree.tag_configure("excluded", foreground="#6f8790")
 
-        ttk.Label(detail_panel, text="评论详情", style="Panel.TLabel", font=("Microsoft YaHei UI", 14, "bold")).pack(anchor="w")
+        ttk.Label(detail_panel, text="内容详情", style="Panel.TLabel", font=("Microsoft YaHei UI", 14, "bold")).pack(anchor="w")
         self.detail_meta = StringVar(value="请选择一条评论")
         ttk.Label(detail_panel, textvariable=self.detail_meta, style="Muted.Panel.TLabel", wraplength=410).pack(anchor="w", pady=(4, 10))
-        ttk.Label(detail_panel, text="原始评论", style="Muted.Panel.TLabel").pack(anchor="w")
+        ttk.Label(detail_panel, text="原始公开内容 / 评论", style="Muted.Panel.TLabel").pack(anchor="w")
         self.comment_text = ScrolledText(detail_panel, height=5, wrap="word", bg=PANEL_ALT, fg=TEXT, insertbackground=TEXT, relief="flat", font=("Microsoft YaHei UI", 10))
         self.comment_text.pack(fill=X, pady=(4, 10))
         self.comment_text.configure(state="disabled")
@@ -171,9 +177,9 @@ class LeadRadarApp:
         reply_actions = ttk.Frame(detail_panel, style="Panel.TFrame")
         reply_actions.pack(fill=X)
         ttk.Button(reply_actions, text="复制回复", command=self.copy_reply).pack(side=LEFT, padx=(0, 5))
-        ttk.Button(reply_actions, text="打开原视频", command=self.open_video).pack(side=LEFT, padx=5)
+        ttk.Button(reply_actions, text="打开来源", command=self.open_video).pack(side=LEFT, padx=5)
         ttk.Button(reply_actions, text="标记忽略", command=lambda: self.mark_status("已忽略")).pack(side=LEFT, padx=5)
-        ttk.Button(reply_actions, text="官方接口回复", style="Gold.TButton", command=self.publish_selected).pack(side=RIGHT, padx=(5, 0))
+        ttk.Button(reply_actions, text="授权账号接口回复", style="Gold.TButton", command=self.publish_selected).pack(side=RIGHT, padx=(5, 0))
 
         bottom = ttk.Frame(self.root, padding=(22, 0, 22, 14))
         bottom.pack(fill=X)
@@ -265,19 +271,30 @@ class LeadRadarApp:
         mode = self.db.get_setting("ai_mode", "rules")
         ollama_url = self.db.get_setting("ollama_url", "http://127.0.0.1:11434")
         ollama_model = self.db.get_setting("ollama_model", "qwen2.5:3b")
+        profile = self._project_profile()
         for row_id in ids:
             row = self.db.get(row_id)
             if not row:
                 continue
-            result = classify_with_ollama(row["content"], ollama_url, ollama_model) if mode == "ollama" else classify_rule_based(row["content"])
+            result = classify_with_ollama(row["content"], ollama_url, ollama_model, profile=profile) if mode == "ollama" else classify_rule_based(row["content"], profile)
             self.db.apply_classification(row_id, result)
 
-    def import_csv_action(self) -> None:
+    def _project_profile(self) -> dict[str, str]:
+        return {
+            "project_name": self.db.get_setting("project_name", "2027 南极旅行项目"),
+            "project_intro": self.db.get_setting("project_intro", "我们正在公开筹备项目，相关计划、费用和进展会持续发布。"),
+            "project_keywords": self.db.get_setting("project_keywords", "南极,Antarctica,乌斯怀亚,德雷克"),
+            "high_intent_keywords": self.db.get_setting("high_intent_keywords", "怎么报名,如何参加,多少钱,价格,费用,一起去,同行,合作,赞助,how much,how to join,interested,price,cost"),
+            "exclude_keywords": self.db.get_setting("exclude_keywords", "兼职,刷单,博彩,贷款,私聊赚钱"),
+            "reply_signature": self.db.get_setting("reply_signature", "详情可进入主页查看项目介绍。"),
+        }
+
+    def import_csv_action(self, platform_override: str = "") -> None:
         path = filedialog.askopenfilename(title="选择评论CSV", filetypes=[("CSV文件", "*.csv"), ("所有文件", "*.*")])
         if not path:
             return
         def worker():
-            items = import_csv(path)
+            items = import_csv(path, platform_override=platform_override)
             inserted, updated, ids = self.db.bulk_upsert(items)
             self._classify_ids(ids)
             return inserted, updated
@@ -294,13 +311,13 @@ class LeadRadarApp:
         return [self.db.get(int(item)) for item in self.tree.get_children() if self.db.get(int(item))]
 
     def export_csv_action(self) -> None:
-        path = filedialog.asksaveasfilename(title="导出评论清单", defaultextension=".csv", initialfile="南极意向评论清单.csv", filetypes=[("CSV文件", "*.csv")])
+        path = filedialog.asksaveasfilename(title="导出线索清单", defaultextension=".csv", initialfile="全域媒介线索清单.csv", filetypes=[("CSV文件", "*.csv")])
         if path:
             export_csv(path, self._visible_rows())
             messagebox.showinfo("导出完成", path)
 
     def export_xlsx_action(self) -> None:
-        path = filedialog.asksaveasfilename(title="导出Excel清单", defaultextension=".xlsx", initialfile="南极意向评论清单.xlsx", filetypes=[("Excel文件", "*.xlsx")])
+        path = filedialog.asksaveasfilename(title="导出Excel清单", defaultextension=".xlsx", initialfile="全域媒介线索清单.xlsx", filetypes=[("Excel文件", "*.xlsx")])
         if path:
             export_xlsx(path, self._visible_rows())
             messagebox.showinfo("导出完成", path)
@@ -357,6 +374,157 @@ class LeadRadarApp:
             messagebox.showinfo("发布成功", "抖音官方接口已接受回复。")
         self.run_background("正在通过抖音官方接口发布…", worker, success)
 
+    def _collect_result(self, label: str, worker) -> None:
+        def wrapped():
+            items = worker()
+            inserted, updated, ids = self.db.bulk_upsert(items)
+            self._classify_ids(ids)
+            return len(items), inserted, updated
+        self.run_background(label, wrapped, lambda result: messagebox.showinfo("采集完成", f"获取 {result[0]} 条，新增 {result[1]} 条，更新 {result[2]} 条。"))
+
+    def open_platform_hub(self) -> None:
+        dialog = Toplevel(self.root)
+        dialog.title("平台连接中心")
+        dialog.geometry("1050x680")
+        dialog.configure(bg=BG)
+        frame = ttk.Frame(dialog, padding=20)
+        frame.pack(fill=BOTH, expand=True)
+        ttk.Label(frame, text="平台连接中心", font=("Microsoft YaHei UI", 17, "bold")).pack(anchor="w")
+        ttk.Label(frame, text="官方直连、授权账号与合规文件导入统一管理。未获平台权限时，连接入口仍会显示，但不会绕过登录、验证码或风控。", style="Sub.TLabel", wraplength=960).pack(anchor="w", pady=(4, 12))
+        columns = ("platform", "connection", "capabilities", "region", "status")
+        tree = ttk.Treeview(frame, columns=columns, show="headings", selectmode="browse", height=18)
+        widths = {"platform": 125, "connection": 175, "capabilities": 330, "region": 145, "status": 120}
+        labels = {"platform": "平台", "connection": "接入方式", "capabilities": "允许能力", "region": "地区方式", "status": "当前入口"}
+        for key in columns:
+            tree.heading(key, text=labels[key])
+            tree.column(key, width=widths[key], stretch=key == "capabilities")
+        for spec in PLATFORMS:
+            tree.insert("", END, iid=spec.key, values=(spec.name, spec.connection, spec.capabilities, spec.region_mode, spec.status))
+        tree.pack(fill=BOTH, expand=True)
+
+        buttons = ttk.Frame(frame)
+        buttons.pack(fill=X, pady=(12, 0))
+
+        def selected_spec():
+            selected = tree.selection()
+            return PLATFORM_BY_KEY.get(selected[0]) if selected else None
+
+        def configure():
+            spec = selected_spec()
+            if not spec:
+                messagebox.showinfo("请选择平台", "请先选择一个平台。", parent=dialog)
+                return
+            actions = {
+                "youtube": self.open_youtube_dialog, "douyin": self.open_douyin_dialog,
+                "x": self.open_x_dialog, "reddit": self.open_reddit_dialog,
+                "facebook": self.open_facebook_dialog, "instagram": self.open_instagram_dialog,
+                "tiktok": self.open_tiktok_dialog,
+            }
+            dialog.destroy()
+            if spec.key in actions:
+                actions[spec.key]()
+            else:
+                messagebox.showinfo(f"{spec.name} 接入说明", f"{spec.note}\n\n当前版本请使用该平台账号后台或正式数据服务导出的 CSV，再从平台连接中心导入。")
+
+        def show_docs():
+            spec = selected_spec()
+            if spec:
+                if messagebox.askyesno(f"{spec.name} 接入要求", f"{spec.note}\n\n是否打开官方说明页面？", parent=dialog):
+                    webbrowser.open(spec.docs_url)
+
+        def import_selected():
+            spec = selected_spec()
+            if spec:
+                dialog.destroy()
+                self.import_csv_action(spec.name)
+
+        ttk.Button(buttons, text="配置 / 开始采集", style="Accent.TButton", command=configure).pack(side=LEFT, padx=(0, 7))
+        ttk.Button(buttons, text="查看官方接入要求", command=show_docs).pack(side=LEFT, padx=7)
+        ttk.Button(buttons, text="导入所选平台CSV", command=import_selected).pack(side=LEFT, padx=7)
+        ttk.Button(buttons, text="关闭", command=dialog.destroy).pack(side=RIGHT)
+        tree.bind("<Double-1>", lambda _event: configure())
+
+    def open_x_dialog(self) -> None:
+        dialog = Toplevel(self.root); dialog.title("X / Twitter 官方搜索"); dialog.geometry("640x610"); dialog.configure(bg=BG)
+        frame = ttk.Frame(dialog, padding=20); frame.pack(fill=BOTH, expand=True)
+        ttk.Label(frame, text="X API 近期公开帖文与回复搜索", font=("Microsoft YaHei UI", 15, "bold")).pack(anchor="w")
+        ttk.Label(frame, text="地区限制只匹配带地理标签的帖文，可能显著减少结果；历史范围和调用量取决于 X 开发者套餐。", style="Sub.TLabel", wraplength=580).pack(anchor="w", pady=(4, 12))
+        token = StringVar(); keyword = StringVar(value=self.db.get_setting("project_keywords", "").replace("，", " OR ").replace(",", " OR ")); maximum = StringVar(value="100")
+        language = StringVar(value="自动/不限"); region = StringVar(value="不限地区"); replies_only = BooleanVar(value=False)
+        for label, var, secret in [("Bearer Token", token, True), ("搜索表达式（使用 OR，不使用竖线）", keyword, False), ("最多帖文/回复数（10–1000）", maximum, False)]:
+            ttk.Label(frame, text=label).pack(anchor="w", pady=(7, 3)); ttk.Entry(frame, textvariable=var, show="•" if secret else "").pack(fill=X)
+        ttk.Label(frame, text="相关语言").pack(anchor="w", pady=(8, 3)); ttk.Combobox(frame, state="readonly", textvariable=language, values=[x[0] for x in LANGUAGES]).pack(fill=X)
+        ttk.Label(frame, text="精确地理标签地区").pack(anchor="w", pady=(8, 3)); ttk.Combobox(frame, state="readonly", textvariable=region, values=[x[0] for x in REGIONS]).pack(fill=X)
+        ttk.Checkbutton(frame, text="只搜索回复（is:reply）", variable=replies_only).pack(anchor="w", pady=(10, 0))
+        def submit():
+            try: limit = max(10, min(1000, int(maximum.get())))
+            except ValueError: messagebox.showerror("格式错误", "最大数量必须是整数。", parent=dialog); return
+            if not token.get().strip() or not keyword.get().strip(): messagebox.showerror("缺少信息", "Bearer Token 和关键词不能为空。", parent=dialog); return
+            values = (token.get().strip(), keyword.get().strip(), limit, option_code(language.get(), LANGUAGES), option_code(region.get(), REGIONS), replies_only.get())
+            dialog.destroy(); self._collect_result("正在调用 X 官方搜索…", lambda: self.x_connector.search_posts(*values))
+        ttk.Button(frame, text="开始官方搜索", style="Accent.TButton", command=submit).pack(anchor="e", pady=(16, 0))
+
+    def open_reddit_dialog(self) -> None:
+        dialog = Toplevel(self.root); dialog.title("Reddit 官方搜索"); dialog.geometry("640x600"); dialog.configure(bg=BG)
+        frame = ttk.Frame(dialog, padding=20); frame.pack(fill=BOTH, expand=True)
+        ttk.Label(frame, text="Reddit 社区帖子与公开评论", font=("Microsoft YaHei UI", 15, "bold")).pack(anchor="w")
+        ttk.Label(frame, text="使用 Reddit script/web app 的 Client ID 与 Secret。没有精确国家过滤，可通过 subreddit、语言词和地区词缩小范围。", style="Sub.TLabel", wraplength=580).pack(anchor="w", pady=(4, 12))
+        client_id = StringVar(); secret = StringVar(); user_agent = StringVar(value="windows:omnimedia-radar:v0.2 (by /u/your_username)")
+        keyword = StringVar(value=self.db.get_setting("project_keywords", "")); subreddit = StringVar(); max_posts = StringVar(value="20"); max_comments = StringVar(value="200")
+        fields = [("Client ID", client_id, False), ("Client Secret", secret, True), ("User-Agent（需包含你的 Reddit 用户名）", user_agent, False), ("关键词", keyword, False), ("Subreddit（可选，不带 r/）", subreddit, False), ("最多帖子数", max_posts, False), ("每帖最多评论数", max_comments, False)]
+        for label, var, hidden in fields:
+            ttk.Label(frame, text=label).pack(anchor="w", pady=(5, 2)); ttk.Entry(frame, textvariable=var, show="•" if hidden else "").pack(fill=X)
+        def submit():
+            if not all(v.get().strip() for v in (client_id, secret, user_agent, keyword)): messagebox.showerror("缺少信息", "Client ID、Secret、User-Agent 和关键词不能为空。", parent=dialog); return
+            try: p = max(1, min(100, int(max_posts.get()))); c = max(1, min(500, int(max_comments.get())))
+            except ValueError: messagebox.showerror("格式错误", "数量必须是整数。", parent=dialog); return
+            values = (client_id.get().strip(), secret.get().strip(), user_agent.get().strip(), keyword.get().strip(), subreddit.get().strip(), p, c)
+            dialog.destroy(); self._collect_result("正在调用 Reddit 官方 API…", lambda: self.reddit.search_comments(*values))
+        ttk.Button(frame, text="开始官方采集", style="Accent.TButton", command=submit).pack(anchor="e", pady=(14, 0))
+
+    def open_facebook_dialog(self) -> None:
+        self._open_meta_dialog("Facebook")
+
+    def open_instagram_dialog(self) -> None:
+        self._open_meta_dialog("Instagram")
+
+    def _open_meta_dialog(self, platform: str) -> None:
+        dialog = Toplevel(self.root); dialog.title(f"{platform} 授权账号评论"); dialog.geometry("620x480"); dialog.configure(bg=BG)
+        frame = ttk.Frame(dialog, padding=20); frame.pack(fill=BOTH, expand=True)
+        is_fb = platform == "Facebook"
+        ttk.Label(frame, text=f"{platform} 已授权账号内容评论", font=("Microsoft YaHei UI", 15, "bold")).pack(anchor="w")
+        ttk.Label(frame, text="只读取你管理或已授权的主页/专业账号内容，不能作为全站任意用户评论搜索器。Token 仅保存在当前运行内存。", style="Sub.TLabel", wraplength=560).pack(anchor="w", pady=(4, 12))
+        token = StringVar(); account_id = StringVar(); max_posts = StringVar(value="20"); max_comments = StringVar(value="100")
+        for label, var, hidden in [("Page Access Token" if is_fb else "Instagram Access Token", token, True), ("Page ID" if is_fb else "Instagram Professional Account ID", account_id, False), ("最多帖子/媒体数", max_posts, False), ("每条内容最多评论数", max_comments, False)]:
+            ttk.Label(frame, text=label).pack(anchor="w", pady=(8, 3)); ttk.Entry(frame, textvariable=var, show="•" if hidden else "").pack(fill=X)
+        def submit():
+            if not token.get().strip() or not account_id.get().strip(): messagebox.showerror("缺少信息", "Token 和账号 ID 不能为空。", parent=dialog); return
+            try: p = max(1, min(100, int(max_posts.get()))); c = max(1, min(100, int(max_comments.get())))
+            except ValueError: messagebox.showerror("格式错误", "数量必须是整数。", parent=dialog); return
+            values = (token.get().strip(), account_id.get().strip(), p, c); dialog.destroy()
+            worker = (lambda: self.meta.facebook_page_comments(*values)) if is_fb else (lambda: self.meta.instagram_comments(*values))
+            self._collect_result(f"正在调用 {platform} 官方 API…", worker)
+        ttk.Button(frame, text="开始读取授权评论", style="Accent.TButton", command=submit).pack(anchor="e", pady=(18, 0))
+
+    def open_tiktok_dialog(self) -> None:
+        dialog = Toplevel(self.root); dialog.title("TikTok Research API"); dialog.geometry("650x650"); dialog.configure(bg=BG)
+        frame = ttk.Frame(dialog, padding=20); frame.pack(fill=BOTH, expand=True)
+        ttk.Label(frame, text="TikTok Research API 视频与评论", font=("Microsoft YaHei UI", 15, "bold")).pack(anchor="w")
+        ttk.Label(frame, text="仅供已通过 TikTok Research Tools 资格审核的非营利研究使用。普通创作者或商业获客账号通常不具备此权限。日期范围最长 30 天。", style="Sub.TLabel", wraplength=590).pack(anchor="w", pady=(4, 12))
+        token = StringVar(); keyword = StringVar(value=self.db.get_setting("project_keywords", "").split(",")[0]); region = StringVar(value="美国")
+        start_date = StringVar(value="20260701"); end_date = StringVar(value="20260730"); max_videos = StringVar(value="20"); max_comments = StringVar(value="100")
+        for label, var, hidden in [("Research API Client Access Token", token, True), ("单个关键词", keyword, False), ("开始日期 YYYYMMDD", start_date, False), ("结束日期 YYYYMMDD", end_date, False), ("最多视频数", max_videos, False), ("每视频最多评论数", max_comments, False)]:
+            ttk.Label(frame, text=label).pack(anchor="w", pady=(6, 2)); ttk.Entry(frame, textvariable=var, show="•" if hidden else "").pack(fill=X)
+        ttk.Label(frame, text="创作者注册地区").pack(anchor="w", pady=(7, 3)); ttk.Combobox(frame, state="readonly", textvariable=region, values=[x[0] for x in REGIONS]).pack(fill=X)
+        def submit():
+            if not token.get().strip() or not keyword.get().strip(): messagebox.showerror("缺少信息", "Token 和关键词不能为空。", parent=dialog); return
+            try: v = max(1, min(100, int(max_videos.get()))); c = max(1, min(1000, int(max_comments.get())))
+            except ValueError: messagebox.showerror("格式错误", "数量必须是整数。", parent=dialog); return
+            code = option_code(region.get(), REGIONS); regions = [code] if code else []
+            values = (token.get().strip(), keyword.get().strip(), regions, start_date.get().strip(), end_date.get().strip(), v, c)
+            dialog.destroy(); self._collect_result("正在调用 TikTok Research API…", lambda: self.tiktok.collect(*values))
+        ttk.Button(frame, text="开始研究数据采集", style="Accent.TButton", command=submit).pack(anchor="e", pady=(14, 0))
+
     def open_douyin_dialog(self) -> None:
         dialog = Toplevel(self.root)
         dialog.title("抖音官方评论采集")
@@ -401,22 +569,29 @@ class LeadRadarApp:
     def open_youtube_dialog(self) -> None:
         dialog = Toplevel(self.root)
         dialog.title("YouTube关键词搜索")
-        dialog.geometry("620x500")
+        dialog.geometry("640x640")
         dialog.configure(bg=BG)
         frame = ttk.Frame(dialog, padding=20)
         frame.pack(fill=BOTH, expand=True)
         ttk.Label(frame, text="YouTube官方API关键词采集", font=("Microsoft YaHei UI", 15, "bold")).pack(anchor="w")
         ttk.Label(frame, text="API Key只保存在本次运行内存中。评论回复仍需人工确认并在平台完成。", style="Sub.TLabel", wraplength=560).pack(anchor="w", pady=(4, 14))
         api_key = StringVar(value=self.youtube_api_key)
-        keyword = StringVar(value="南极旅行 OR 南极同行 OR Antarctica expedition")
+        keyword = StringVar(value=self.db.get_setting("project_keywords", "南极旅行,南极同行,Antarctica expedition").replace("，", "|").replace(",", "|"))
         max_videos = StringVar(value="10")
         max_comments = StringVar(value="200")
+        language = StringVar(value=self.db.get_setting("target_language_label", "简体中文"))
+        region = StringVar(value=self.db.get_setting("target_region_label", "不限地区"))
         for label, var, secret in [
             ("YouTube Data API Key", api_key, True), ("搜索关键词", keyword, False),
             ("最多视频数（1–100）", max_videos, False), ("每个视频最多评论数（1–5000）", max_comments, False),
         ]:
             ttk.Label(frame, text=label).pack(anchor="w", pady=(8, 3))
             ttk.Entry(frame, textvariable=var, show="•" if secret else "").pack(fill=X)
+        ttk.Label(frame, text="相关语言").pack(anchor="w", pady=(8, 3))
+        ttk.Combobox(frame, state="readonly", textvariable=language, values=[item[0] for item in LANGUAGES]).pack(fill=X)
+        ttk.Label(frame, text="可观看国家/地区").pack(anchor="w", pady=(8, 3))
+        ttk.Combobox(frame, state="readonly", textvariable=region, values=[item[0] for item in REGIONS]).pack(fill=X)
+        ttk.Label(frame, text="提示：YouTube 的地区参数影响可观看区域和相关性，不等于评论者真实所在地。", style="Sub.TLabel", wraplength=580).pack(anchor="w", pady=(7, 0))
 
         def submit():
             key = api_key.get().strip()
@@ -431,9 +606,13 @@ class LeadRadarApp:
                 messagebox.showerror("格式错误", "数量必须是整数。", parent=dialog)
                 return
             self.youtube_api_key = key
+            language_code = option_code(language.get(), LANGUAGES)
+            region_code = option_code(region.get(), REGIONS)
+            self.db.set_setting("target_language_label", language.get())
+            self.db.set_setting("target_region_label", region.get())
             dialog.destroy()
             def worker():
-                videos = self.youtube.search_videos(key, term, video_limit)
+                videos = self.youtube.search_videos(key, term, video_limit, language_code, region_code)
                 all_items = []
                 errors = 0
                 for video in videos:
@@ -449,29 +628,64 @@ class LeadRadarApp:
 
     def open_settings(self) -> None:
         dialog = Toplevel(self.root)
-        dialog.title("AI设置")
-        dialog.geometry("570x390")
+        dialog.title("项目与 AI 设置")
+        dialog.geometry("780x760")
         dialog.configure(bg=BG)
         frame = ttk.Frame(dialog, padding=20)
         frame.pack(fill=BOTH, expand=True)
-        ttk.Label(frame, text="AI分析方式", font=("Microsoft YaHei UI", 15, "bold")).pack(anchor="w")
-        ttk.Label(frame, text="默认规则引擎完全离线。Ollama模式把评论发送到本机模型，不上传云端。", style="Sub.TLabel", wraplength=520).pack(anchor="w", pady=(5, 14))
+        ttk.Label(frame, text="项目与 AI 设置", font=("Microsoft YaHei UI", 16, "bold")).pack(anchor="w")
+        ttk.Label(frame, text="更换项目名称和关键词后，软件可用于旅行、产品、课程、品牌、活动、服务等不同主题。", style="Sub.TLabel", wraplength=720).pack(anchor="w", pady=(5, 12))
+        notebook = ttk.Notebook(frame)
+        notebook.pack(fill=BOTH, expand=True)
+        project_tab = ttk.Frame(notebook, padding=16)
+        ai_tab = ttk.Frame(notebook, padding=16)
+        notebook.add(project_tab, text="项目与关键词")
+        notebook.add(ai_tab, text="本地 AI")
+
+        project_name = StringVar(value=self.db.get_setting("project_name", "2027 南极旅行项目"))
+        ttk.Label(project_tab, text="项目/品牌名称").pack(anchor="w", pady=(0, 3))
+        ttk.Entry(project_tab, textvariable=project_name).pack(fill=X)
+
+        text_fields: dict[str, ScrolledText] = {}
+        definitions = [
+            ("project_intro", "项目简介（用于生成回复）", "我们正在公开筹备项目，相关计划、费用和进展会持续发布。", 3),
+            ("project_keywords", "主题关键词（逗号或换行分隔）", "南极,Antarctica,乌斯怀亚,德雷克", 4),
+            ("high_intent_keywords", "高意向词（报名、价格、购买、合作等）", "怎么报名,如何参加,多少钱,价格,费用,一起去,同行,合作,赞助,how much,how to join,interested,price,cost", 4),
+            ("exclude_keywords", "排除词（广告、诈骗或无关主题）", "兼职,刷单,博彩,贷款,私聊赚钱", 3),
+            ("reply_signature", "回复结尾/主页引导", "详情可进入主页查看项目介绍。", 3),
+        ]
+        for key, label, default, height in definitions:
+            ttk.Label(project_tab, text=label).pack(anchor="w", pady=(10, 3))
+            widget = ScrolledText(project_tab, height=height, wrap="word", bg=PANEL_ALT, fg=TEXT, insertbackground=TEXT, relief="flat", font=("Microsoft YaHei UI", 10))
+            widget.pack(fill=X)
+            widget.insert("1.0", self.db.get_setting(key, default))
+            text_fields[key] = widget
+
+        ttk.Label(ai_tab, text="默认规则引擎完全离线。Ollama 模式只把文本发送到本机模型，不上传云端。", style="Sub.TLabel", wraplength=660).pack(anchor="w", pady=(0, 14))
         mode = StringVar(value=self.db.get_setting("ai_mode", "rules"))
         ollama_url = StringVar(value=self.db.get_setting("ollama_url", "http://127.0.0.1:11434"))
         ollama_model = StringVar(value=self.db.get_setting("ollama_model", "qwen2.5:3b"))
-        ttk.Radiobutton(frame, text="离线规则引擎（推荐，开箱即用）", variable=mode, value="rules").pack(anchor="w", pady=4)
-        ttk.Radiobutton(frame, text="本机Ollama模型", variable=mode, value="ollama").pack(anchor="w", pady=4)
-        ttk.Label(frame, text="Ollama地址").pack(anchor="w", pady=(12, 3))
-        ttk.Entry(frame, textvariable=ollama_url).pack(fill=X)
-        ttk.Label(frame, text="模型名称").pack(anchor="w", pady=(10, 3))
-        ttk.Entry(frame, textvariable=ollama_model).pack(fill=X)
+        ttk.Radiobutton(ai_tab, text="离线规则引擎（推荐，开箱即用）", variable=mode, value="rules").pack(anchor="w", pady=4)
+        ttk.Radiobutton(ai_tab, text="本机 Ollama 模型", variable=mode, value="ollama").pack(anchor="w", pady=4)
+        ttk.Label(ai_tab, text="Ollama 地址").pack(anchor="w", pady=(12, 3))
+        ttk.Entry(ai_tab, textvariable=ollama_url).pack(fill=X)
+        ttk.Label(ai_tab, text="模型名称").pack(anchor="w", pady=(10, 3))
+        ttk.Entry(ai_tab, textvariable=ollama_model).pack(fill=X)
         def save():
+            name = project_name.get().strip()
+            if not name:
+                messagebox.showerror("缺少名称", "项目/品牌名称不能为空。", parent=dialog)
+                return
+            self.db.set_setting("project_name", name)
+            for key, widget in text_fields.items():
+                self.db.set_setting(key, widget.get("1.0", END).strip())
             self.db.set_setting("ai_mode", mode.get())
             self.db.set_setting("ollama_url", ollama_url.get().strip())
             self.db.set_setting("ollama_model", ollama_model.get().strip())
+            self.project_header.set(f"{name} · 跨平台公开信息 · 本地AI线索分级 · 人工审核")
             dialog.destroy()
-            messagebox.showinfo("保存成功", "AI设置已保存在本机。")
-        ttk.Button(frame, text="保存设置", style="Accent.TButton", command=save).pack(anchor="e", pady=(18, 0))
+            messagebox.showinfo("保存成功", "项目与 AI 设置已保存在本机。可点击“重新AI分析”应用到现有数据。")
+        ttk.Button(frame, text="保存设置", style="Accent.TButton", command=save).pack(anchor="e", pady=(14, 0))
 
 
 def main() -> None:

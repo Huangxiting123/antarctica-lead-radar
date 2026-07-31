@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import shutil
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -12,10 +13,15 @@ from typing import Any, Iterable, Iterator
 def app_data_dir() -> Path:
     if os.name == "nt":
         root = Path(os.getenv("LOCALAPPDATA") or Path.home())
-        path = root / "AntarcticaLeadRadar"
+        path = root / "OmniMediaIntelligenceRadar"
+        legacy = root / "AntarcticaLeadRadar" / "lead_radar.db"
     else:
-        path = Path.home() / ".antarctica_lead_radar"
+        path = Path.home() / ".omnimedia_intelligence_radar"
+        legacy = Path.home() / ".antarctica_lead_radar" / "lead_radar.db"
     path.mkdir(parents=True, exist_ok=True)
+    current = path / "lead_radar.db"
+    if not current.exists() and legacy.exists():
+        shutil.copy2(legacy, current)
     return path
 
 

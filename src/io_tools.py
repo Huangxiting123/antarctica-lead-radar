@@ -46,7 +46,7 @@ def _safe_spreadsheet_text(value: Any) -> str:
     return text
 
 
-def import_csv(path: str | Path) -> list[dict[str, str]]:
+def import_csv(path: str | Path, platform_override: str = "") -> list[dict[str, str]]:
     file_path = Path(path)
     raw = file_path.read_bytes()
     for encoding in ("utf-8-sig", "gb18030", "utf-8"):
@@ -74,7 +74,10 @@ def import_csv(path: str | Path) -> list[dict[str, str]]:
     for row in reader:
         item = {target: (row.get(source) or "").strip() for source, target in header_map.items()}
         if item.get("content"):
-            item.setdefault("platform", "手工导入")
+            if platform_override:
+                item["platform"] = platform_override
+            else:
+                item.setdefault("platform", "手工导入")
             items.append(item)
     return items
 
@@ -149,7 +152,7 @@ def export_xlsx(path: str | Path, rows: Iterable[dict[str, Any]]) -> None:
 </Relationships>'''
     workbook = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-  <sheets><sheet name="南极意向评论" sheetId="1" r:id="rId1"/></sheets>
+  <sheets><sheet name="媒介线索清单" sheetId="1" r:id="rId1"/></sheets>
 </workbook>'''
     workbook_rels = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
@@ -166,7 +169,7 @@ def export_xlsx(path: str | Path, rows: Iterable[dict[str, Any]]) -> None:
 </styleSheet>'''
     created = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     core = f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>南极意向评论清单</dc:title><dc:creator>Antarctica Lead Radar</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">{created}</dcterms:created></cp:coreProperties>'''
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>全域媒介线索清单</dc:title><dc:creator>OmniMedia Intelligence Radar</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">{created}</dcterms:created></cp:coreProperties>'''
 
     with zipfile.ZipFile(Path(path), "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("[Content_Types].xml", content_types)

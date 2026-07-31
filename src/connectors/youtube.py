@@ -20,6 +20,7 @@ class YouTubeConnector:
         keyword: str,
         max_videos: int = 25,
         language: str = "zh-Hans",
+        region_code: str = "",
     ) -> list[dict[str, Any]]:
         max_videos = max(1, min(max_videos, 100))
         videos: list[dict[str, Any]] = []
@@ -32,9 +33,12 @@ class YouTubeConnector:
                 "q": keyword,
                 "maxResults": min(50, max_videos - len(videos)),
                 "order": "relevance",
-                "relevanceLanguage": language,
                 "safeSearch": "moderate",
             }
+            if language:
+                query["relevanceLanguage"] = language
+            if region_code:
+                query["regionCode"] = region_code
             if page_token:
                 query["pageToken"] = page_token
             payload = request_json(self.BASE_URL + "/search", query=query)
