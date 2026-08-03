@@ -3,9 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="合规代订演示商品目录与订单创建页面">
-  <title>跨平台代订收款台｜120个演示商品</title>
+  <meta name="description" content="创建透明订单并生成可转发到微信或QQ的好友代付链接">
+  <meta property="og:title" content="好友代付｜透明订单与真实收款主体">
+  <meta property="og:description" content="创建订单后生成好友代付链接，核对品牌、收款主体、金额和退款规则。">
+  <meta property="og:image" content="https://huangxiting123.github.io/antarctica-lead-radar/official-order-pay/friend-pay-illustration.svg">
+  <title>好友代付｜跨平台代订收款台</title>
   <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./friend-pay.css">
 </head>
 <body>
   <div class="env">演示环境 · GitHub Pages 静态版 · 未连接真实商户支付，不会产生扣款</div>
@@ -27,6 +31,7 @@
         <div class="badge" id="order-state">演示订单</div>
         <h2>订单核对</h2>
         <dl>
+          <div><dt>自有品牌</dt><dd id="s-brand">待填写自有品牌</dd></div>
           <div><dt>收款商户</dt><dd id="s-merchant">待填写已认证商户</dd></div>
           <div><dt>商品/服务</dt><dd id="s-service">待选择商品</dd></div>
           <div><dt>金额</dt><dd class="amount" id="s-amount">¥0.00</dd></div>
@@ -34,7 +39,9 @@
           <div><dt>付款方式</dt><dd id="s-method">微信支付</dd></div>
         </dl>
         <p class="tip">ⓘ 付款前请核对商户、库存与订单信息</p>
+        <button class="share-button" id="share-link" disabled>生成好友代付链接</button>
         <button id="cashier" disabled>前往官方收银台</button>
+        <a id="open-share" class="open-share" hidden target="_blank" rel="noreferrer">打开刚生成的代付页</a>
         <small>静态网站未配置支付服务，系统会阻止扣款。</small>
       </aside>
     </section>
@@ -50,9 +57,10 @@
     <section class="order shell" id="order">
       <div class="section-head"><div><p class="kicker">CREATE ORDER</p><h2>创建代订订单</h2></div><p id="selected-label">请先选择商品或直接填写订单</p></div>
       <form id="order-form" novalidate>
+        <label>自有品牌名称 <b>*</b><input id="brand-input" required placeholder="例如：小黑兔安心服务"></label>
         <label>商户名称 <b>*</b><input id="merchant" required placeholder="请输入营业执照对应的真实商户名称"></label>
         <label>商品/服务 <b>*</b><input id="service" required placeholder="请选择或填写实际商品与服务"></label>
-        <label>订单金额 <b>*</b><input id="amount" type="number" min="0.01" max="520" step="0.01" required placeholder="0.00"></label>
+        <label>订单金额 <b>*</b><input id="amount" type="number" min="9.9" max="520" step="0.01" required placeholder="9.90–520.00"></label>
         <label>退款规则 <b>*</b><input id="refund" required placeholder="请填写实际退款条件与时限"></label>
         <fieldset><legend>付款方式 <b>*</b></legend><label class="pay"><input type="radio" name="method" value="微信支付" checked><span class="paymark wx">微</span><span><strong>微信支付</strong><small>需要服务端正式接入</small></span></label><label class="pay"><input type="radio" name="method" value="支付宝"><span class="paymark ali">支</span><span><strong>支付宝</strong><small>需要服务端正式接入</small></span></label></fieldset>
         <label class="confirm"><input id="confirm" type="checkbox"><span>我确认商户、商品、价格、库存和退款规则真实准确，且不会冒充任何第三方平台或品牌官方渠道。</span></label>
@@ -65,5 +73,6 @@
   </main>
   <footer>© 2026 跨平台代订收款台 · 合规演示 · 不隶属于任何酒店、化妆品、餐饮或生活服务品牌</footer>
   <script src="./app.js"></script>
+  <script src="./friend-share.js"></script>
 </body>
 </html>
