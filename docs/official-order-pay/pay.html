@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="description" content="好友代付订单详情，请核对真实收款主体、金额和退款规则。">
+  <meta property="og:title" content="好友代付｜请帮我完成这笔订单">
+  <meta property="og:description" content="点击查看订单详情、真实收款主体、金额和退款规则。">
+  <meta property="og:image" content="https://huangxiting123.github.io/antarctica-lead-radar/official-order-pay/friend-pay-illustration.svg">
+  <title>好友代付｜订单详情</title>
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./friend-pay.css">
+</head>
+<body class="friend-body">
+  <main class="friend-page">
+    <div class="friend-demo">演示订单 · 尚未接入支付通道 · 不会产生扣款</div>
+    <section class="friend-shell">
+      <header class="friend-header"><a href="./">返回</a><div><strong id="p-brand-head">好友代付</strong><small>好友代付</small></div><button id="p-share" type="button">转发</button></header>
+      <section class="friend-hero">
+        <div class="friend-art"><div class="friend-copy"><span>FRIEND PAY</span><h1>来帮我代付吧～</h1><p>你的帮助，让这份期待更近一步</p></div><img src="./friend-pay-illustration.svg" alt="好友拿着手机帮助代付的原创插画"></div>
+        <div class="countdown"><small>剩余支付时间</small><strong id="p-time">15:00</strong><button id="p-details" type="button">查看详情</button></div>
+      </section>
+      <section class="friend-order"><p class="friend-status">请核对订单后再付款</p><div class="friend-total"><small>代付金额</small><strong id="p-amount">¥9.90</strong></div><dl id="p-dl"><div><dt>自有品牌</dt><dd id="p-brand"></dd></div><div><dt>真实收款主体</dt><dd id="p-merchant"></dd></div><div><dt>订单内容</dt><dd id="p-service"></dd></div><div><dt>订单编号</dt><dd id="p-order"></dd></div><div><dt>退款规则</dt><dd id="p-refund"></dd></div></dl></section>
+      <section class="friend-methods"><div class="friend-method-head"><div><h2>选择付款方式</h2><p>正式开通后将进入支付机构官方收银台</p></div><span>待开通</span></div><button data-channel="微信支付">微信支付 <small>官方收银台</small></button><button data-channel="支付宝">支付宝 <small>官方收银台</small></button><p id="p-message" class="friend-message" hidden></p></section>
+      <p class="friend-safe">本页面不属于美团、饿了么或其他生活服务平台。付款前请确认真实收款主体与订单内容。</p>
+    </section>
+  </main>
+  <script src="./pay.js"></script>
+</body>
+</html>
